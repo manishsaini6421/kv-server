@@ -1,0 +1,62 @@
+# This is my Docker Compose configuration for running the KV Server
+# along with a PostgreSQL database in separate containers.
+# It helps me set up the entire environment with one command: `docker-compose up`
+
+version: '3.8'  # I’m using Docker Compose file format version 3.8 (modern and widely supported)
+
+services:
+  # ===============================
+  # PostgreSQL Database Container
+  # ===============================
+  postgres:
+    image: postgres:15-alpine          # Using a lightweight PostgreSQL image (version 15, Alpine base)
+    container_name: kv_postgres        # Naming the container for easy identification
+    environment:
+      POSTGRES_DB: kvstore             # Database name I want to create
+      POSTGRES_USER: kvuser            # Username for PostgreSQL
+      POSTGRES_PASSWORD: kvpass        # Password for the user
+    ports:
+      - "5432:5432"                    # Exposing PostgreSQL on port 5432 so I can connect from my local machine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data      # Persistent volume to store DB data (survives restarts)
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  
+        # Mounting my custom SQL initialization script into the container.
+        # This will automatically run when PostgreSQL starts for the first time.
+    healthcheck:
+      # Adding a health check to ensure the database is ready before the server connects.
+      # pg_isready checks if PostgreSQL is up and accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U kvuser -d kvstore"]
+      interval: 5s     # Run health check every 5 seconds
+      timeout: 3s      # Wait max 3 seconds for each check
+      retries: 5       # Retry up to 5 times before marking the container unhealthy
+
+  # ===============================
+  # KV Server Container
+  # ===============================
+  kv_server:
+    build: .                             # Build the KV server image using the Dockerfile in the current directory
+    container_name: kv_server            # Name of the container
+    depends_on:
+      postgres:
+        condition: service_healthy       # Wait until PostgreSQL passes the health check before starting the server
+    ports:
+      - "8080:8080"                      # Exposing the server on port 8080 (accessible via localhost:8080)
+    environment:
+      # Environment variables for database configuration
+      DB_HOST: postgres                  # The hostname of the database service (same as service name above)
+      DB_PORT: 5432                      # Database port inside the Docker network
+      DB_NAME: kvstore                   # Database name
+      DB_USER: kvuser                    # Database user
+      DB_PASSWORD: kvpass                # Database password
+      
+      # Configuration for my KV Server
+      CACHE_SIZE: 1000                   # Setting cache size (in number of key-value pairs)
+      THREAD_POOL_SIZE: 8                # Setting number of worker threads for handling requests
+    command: ./kv_server                 # The command that runs inside the container (starts my server)
+
+# ===============================
+# Docker Volume Configuration
+# ===============================
+volumes:
+  postgres_data:                         # Named volume for persistent PostgreSQL data
+                                         # Docker will manage this storage outside the container filesystem

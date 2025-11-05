@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+kv_server
+load_generator
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres_data/
+
+# Temporary files
+*.log
+*.tmp
