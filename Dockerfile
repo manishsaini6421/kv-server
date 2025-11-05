@@ -32,3 +32,4 @@ EXPOSE 8080
 
 # Default command
 CMD ["./kv_server"]
+# CMD ["taskset", "-c", "0-3", "./kv_server"]
