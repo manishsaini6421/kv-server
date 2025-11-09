@@ -13,10 +13,10 @@
 
 /**
  * @brief Multi-threaded load generator for KV Server
- * 
+ *
  * This program simulates multiple concurrent clients sending HTTP requests
  * to a Key-Value (KV) server to test its performance under load.
- * 
+ *
  * It supports different workload patterns:
  *  - PUT_ALL: All requests are POST (insert/update operations)
  *  - GET_ALL: All requests are GET (read operations)
@@ -24,19 +24,21 @@
  *  - MIXED: Random mix of GET, PUT, and DELETE operations
  */
 
-enum WorkloadType {
-    PUT_ALL,       // Only PUT operations
-    GET_ALL,       // Only GET operations
-    GET_POPULAR,   // Frequent reads on small key subset
-    MIXED          // Combination of GET, PUT, and DELETE
+enum WorkloadType
+{
+    PUT_ALL,     // Only PUT operations
+    GET_ALL,     // Only GET operations
+    GET_POPULAR, // Frequent reads on small key subset
+    MIXED        // Combination of GET, PUT, and DELETE
 };
 
 // Structure to hold per-thread (client) statistics
-struct ClientStats {
-    uint64_t requests_sent = 0;        // Total number of requests sent
-    uint64_t requests_succeeded = 0;   // Requests that received HTTP 200 OK
-    uint64_t requests_failed = 0;      // Requests that failed (non-200 response or timeout)
-    uint64_t total_latency_ms = 0;     // Cumulative latency in milliseconds
+struct ClientStats
+{
+    uint64_t requests_sent = 0;      // Total number of requests sent
+    uint64_t requests_succeeded = 0; // Requests that received HTTP 200 OK
+    uint64_t requests_failed = 0;    // Requests that failed (non-200 response or timeout)
+    uint64_t total_latency_ms = 0;   // Cumulative latency in milliseconds
 };
 
 // Global atomic flag to indicate if test is running
@@ -47,19 +49,21 @@ std::vector<ClientStats> g_client_stats;
 
 /**
  * @brief Sends a raw HTTP request to the target server and returns the response.
- * 
+ *
  * This function creates a TCP socket, connects to the specified host and port,
  * sends the HTTP request string, and waits for a response.
- * 
+ *
  * @param host Target server hostname or IP
  * @param port Target server port number
  * @param request Full HTTP request string
  * @return std::string Response received from the server
  */
-std::string sendHttpRequest(const std::string& host, int port, const std::string& request) {
+std::string sendHttpRequest(const std::string &host, int port, const std::string &request)
+{
     // Create a TCP socket
     int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
+    if (sock < 0)
+    {
         return "";
     }
 
@@ -68,10 +72,24 @@ std::string sendHttpRequest(const std::string& host, int port, const std::string
     memset(&server_addr, 0, sizeof(server_addr)); // Initialize to zeros
     server_addr.sin_family = AF_INET;             // IPv4 address family
     server_addr.sin_port = htons(port);           // Convert port to network byte order
+
+    // Converts the IP address from its human-readable string form (e.g., "127.0.0.1")
+    // into a binary representation suitable for use in the sockaddr_in structure.
+    //
+    // Parameters:
+    //   AF_INET → Specifies that the address family is IPv4.
+    //   host.c_str() → Provides the IP address as a C-style string (e.g., "192.168.1.10").
+    //   &server_addr.sin_addr → A pointer to where the converted binary address will be stored.
+    //
+    // This step is essential because socket APIs require the address to be in
+    // network byte order (binary form), not in string format. If the conversion
+    // succeeds, inet_pton() returns 1. If the input string is invalid, it returns 0.
+    // On error (e.g., unsupported address family), it returns -1.
     inet_pton(AF_INET, host.c_str(), &server_addr.sin_addr); // Convert IP string to binary form
 
     // Attempt to connect to the server
-    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    {
         close(sock);
         return "";
     }
@@ -82,26 +100,28 @@ std::string sendHttpRequest(const std::string& host, int port, const std::string
     // Buffer for receiving response
     char buffer[4096];
     ssize_t bytes_read = recv(sock, buffer, sizeof(buffer) - 1, 0); // Receive response data
-    close(sock); // Close socket after receiving data
+    close(sock);                                                    // Close socket after receiving data
 
     // Null-terminate and return response if data received
-    if (bytes_read > 0) {
+    if (bytes_read > 0)
+    {
         buffer[bytes_read] = '\0';
         return std::string(buffer);
     }
-    
+
     // Return empty string if no data was received
     return "";
 }
 
 /**
  * @brief Function executed by each client thread.
- * 
+ *
  * Generates requests according to the chosen workload type and measures
  * response latency and success rates.
  */
-void clientThread(int thread_id, const std::string& host, int port, 
-                  WorkloadType workload, int duration_sec, int key_space_size) {
+void clientThread(int thread_id, const std::string &host, int port,
+                  WorkloadType workload, int duration_sec, int key_space_size)
+{
     // Initialize random number generators for key and operation selection
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -110,14 +130,15 @@ void clientThread(int thread_id, const std::string& host, int port,
     std::uniform_int_distribution<> op_dist(0, 2);           // Random op selection (0=GET, 1=PUT, 2=DELETE)
 
     // Reference to current thread's statistics object
-    ClientStats& stats = g_client_stats[thread_id];
+    ClientStats &stats = g_client_stats[thread_id];
 
     // Calculate the time at which the thread should stop sending requests
     auto start_time = std::chrono::steady_clock::now();
     auto end_time = start_time + std::chrono::seconds(duration_sec);
 
     // Loop until duration ends or global stop signal is set
-    while (g_running && std::chrono::steady_clock::now() < end_time) {
+    while (g_running && std::chrono::steady_clock::now() < end_time)
+    {
         std::string request;
         std::ostringstream body;
         auto req_start = std::chrono::steady_clock::now(); // Record start time
@@ -126,64 +147,112 @@ void clientThread(int thread_id, const std::string& host, int port,
         std::string value;
 
         // Select request type and format request body depending on workload type
-        switch (workload) {
-            // -----------------------------
-            case PUT_ALL: {
-                // Generate a random key and corresponding value
-                key = key_dist(gen);
-                value = "value_" + std::to_string(key) + "_" + std::to_string(thread_id);
-                body << "{\"key\":\"key_" << key << "\",\"value\":\"" << value << "\"}";
+        switch (workload)
+        {
+        // -----------------------------
+        case PUT_ALL:
+        {
+            // Generate a random key and corresponding value
+            // Uses the random number generator 'gen' with the distribution 'key_dist'
+            // to produce a random integer 'key'. Each thread generates a different key,
+            // simulating a unique entry to be inserted into the key-value store.
+            key = key_dist(gen);
 
-                // Create HTTP POST request to /api/kv
+            // Creates a unique string value associated with the generated key.
+            // The format is "value_<key>_<thread_id>" so that each thread produces
+            // distinct values even if they accidentally generate the same key.
+            value = "value_" + std::to_string(key) + "_" + std::to_string(thread_id);
+
+            // Constructs a JSON-formatted string for the HTTP POST body.
+            // The JSON object has two fields: "key" and "value".
+            // Example output: {"key":"key_42","value":"value_42_3"}
+            // The use of stringstream 'body' allows efficient concatenation of components.
+            body << "{\"key\":\"key_" << key << "\",\"value\":\"" << value << "\"}";
+
+            // Initializes the HTTP request line specifying:
+            // - Method: POST (used for creating or updating resources)
+            // - Path: /api/kv (the API endpoint for the key-value store)
+            // - Protocol version: HTTP/1.1
+            // The '\r\n' marks the end of the HTTP request line per protocol rules.
+            request = "POST /api/kv HTTP/1.1\r\n";
+
+            // Adds the "Host" header, which specifies the server’s hostname or IP address.
+            // Required in HTTP/1.1 requests to indicate the destination host.
+            request += "Host: " + host + "\r\n";
+
+            // Specifies the type of content being sent in the HTTP body.
+            // In this case, it tells the server that the request body is in JSON format.
+            request += "Content-Type: application/json\r\n";
+
+            // Adds the "Content-Length" header, which tells the server the exact size (in bytes)
+            // of the request body. This helps the server know how many bytes to read.
+            request += "Content-Length: " + std::to_string(body.str().length()) + "\r\n";
+
+            // Adds a blank line ("\r\n") to indicate the end of the HTTP headers section.
+            // Then appends the actual JSON body (the payload) that contains the key-value data.
+            request += "\r\n" + body.str();
+
+            // The final request string now forms a complete and valid HTTP POST message.
+            //
+            // Example full request:
+            // POST /api/kv HTTP/1.1
+            // Host: 127.0.0.1
+            // Content-Type: application/json
+            // Content-Length: 40
+            //
+            // {"key":"key_42","value":"value_42_3"}
+            break;
+        }
+
+        // -----------------------------
+        case GET_ALL:
+        {
+            // Generate random GET request for a random key
+            key = key_dist(gen);
+            request = "GET /api/kv?key=key_" + std::to_string(key) + " HTTP/1.1\r\n";
+            request += "Host: " + host + "\r\n\r\n";
+            break;
+        }
+
+        // -----------------------------
+        case GET_POPULAR:
+        {
+            // Generate GET request for a popular key (small subset of keys)
+            key = popular_key_dist(gen);
+            request = "GET /api/kv?key=popular_key_" + std::to_string(key) + " HTTP/1.1\r\n";
+            request += "Host: " + host + "\r\n\r\n";
+            break;
+        }
+
+        // -----------------------------
+        case MIXED:
+        {
+            // Randomly choose an operation
+            int op = op_dist(gen);
+            key = key_dist(gen);
+
+            if (op == 0)
+            { // GET request
+                request = "GET /api/kv?key=key_" + std::to_string(key) + " HTTP/1.1\r\n";
+                request += "Host: " + host + "\r\n\r\n";
+            }
+            else if (op == 1)
+            { // PUT request
+                value = "value_" + std::to_string(key);
+                body << "{\"key\":\"key_" << key << "\",\"value\":\"" << value << "\"}";
                 request = "POST /api/kv HTTP/1.1\r\n";
                 request += "Host: " + host + "\r\n";
                 request += "Content-Type: application/json\r\n";
                 request += "Content-Length: " + std::to_string(body.str().length()) + "\r\n";
                 request += "\r\n" + body.str();
-                break;
             }
-
-            // -----------------------------
-            case GET_ALL: {
-                // Generate random GET request for a random key
-                key = key_dist(gen);
-                request = "GET /api/kv?key=key_" + std::to_string(key) + " HTTP/1.1\r\n";
+            else
+            { // DELETE request
+                request = "DELETE /api/kv?key=key_" + std::to_string(key) + " HTTP/1.1\r\n";
                 request += "Host: " + host + "\r\n\r\n";
-                break;
             }
-
-            // -----------------------------
-            case GET_POPULAR: {
-                // Generate GET request for a popular key (small subset of keys)
-                key = popular_key_dist(gen);
-                request = "GET /api/kv?key=popular_key_" + std::to_string(key) + " HTTP/1.1\r\n";
-                request += "Host: " + host + "\r\n\r\n";
-                break;
-            }
-
-            // -----------------------------
-            case MIXED: {
-                // Randomly choose an operation
-                int op = op_dist(gen);
-                key = key_dist(gen);
-
-                if (op == 0) { // GET request
-                    request = "GET /api/kv?key=key_" + std::to_string(key) + " HTTP/1.1\r\n";
-                    request += "Host: " + host + "\r\n\r\n";
-                } else if (op == 1) { // PUT request
-                    value = "value_" + std::to_string(key);
-                    body << "{\"key\":\"key_" << key << "\",\"value\":\"" << value << "\"}";
-                    request = "POST /api/kv HTTP/1.1\r\n";
-                    request += "Host: " + host + "\r\n";
-                    request += "Content-Type: application/json\r\n";
-                    request += "Content-Length: " + std::to_string(body.str().length()) + "\r\n";
-                    request += "\r\n" + body.str();
-                } else { // DELETE request
-                    request = "DELETE /api/kv?key=key_" + std::to_string(key) + " HTTP/1.1\r\n";
-                    request += "Host: " + host + "\r\n\r\n";
-                }
-                break;
-            }
+            break;
+        }
         }
 
         // Send the request and capture the response
@@ -195,10 +264,13 @@ void clientThread(int thread_id, const std::string& host, int port,
 
         // Update thread statistics
         stats.requests_sent++;
-        if (!response.empty() && response.find("200 OK") != std::string::npos) {
+        if (!response.empty() && response.find("200 OK") != std::string::npos)
+        {
             stats.requests_succeeded++;
             stats.total_latency_ms += latency;
-        } else {
+        }
+        else
+        {
             stats.requests_failed++;
         }
     }
@@ -207,15 +279,18 @@ void clientThread(int thread_id, const std::string& host, int port,
 /**
  * @brief Prints command-line usage information.
  */
-void printUsage(const char* prog_name) {
+void printUsage(const char *prog_name)
+{
     std::cout << "Usage: " << prog_name << " <host> <port> <workload> <num_threads> <duration_sec> [key_space_size]" << std::endl;
     std::cout << "Workload types: PUT_ALL, GET_ALL, GET_POPULAR, MIXED" << std::endl;
     std::cout << "Example: " << prog_name << " localhost 8080 GET_POPULAR 10 60 10000" << std::endl;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     // Ensure minimum required arguments are provided
-    if (argc < 6) {
+    if (argc < 6)
+    {
         printUsage(argv[0]);
         return 1;
     }
@@ -230,11 +305,16 @@ int main(int argc, char* argv[]) {
 
     // Map string to workload type enum
     WorkloadType workload;
-    if (workload_str == "PUT_ALL") workload = PUT_ALL;
-    else if (workload_str == "GET_ALL") workload = GET_ALL;
-    else if (workload_str == "GET_POPULAR") workload = GET_POPULAR;
-    else if (workload_str == "MIXED") workload = MIXED;
-    else {
+    if (workload_str == "PUT_ALL")
+        workload = PUT_ALL;
+    else if (workload_str == "GET_ALL")
+        workload = GET_ALL;
+    else if (workload_str == "GET_POPULAR")
+        workload = GET_POPULAR;
+    else if (workload_str == "MIXED")
+        workload = MIXED;
+    else
+    {
         std::cerr << "Invalid workload type: " << workload_str << std::endl;
         printUsage(argv[0]);
         return 1;
@@ -247,12 +327,15 @@ int main(int argc, char* argv[]) {
     std::cout << "Threads: " << num_threads << std::endl;
     std::cout << "Duration: " << duration_sec << " seconds" << std::endl;
     std::cout << "Key Space Size: " << key_space_size << std::endl;
-    std::cout << "====================================\n" << std::endl;
+    std::cout << "====================================\n"
+              << std::endl;
 
     // Preload popular keys into server for GET_POPULAR workload
-    if (workload == GET_POPULAR) {
+    if (workload == GET_POPULAR)
+    {
         std::cout << "Pre-populating popular keys..." << std::endl;
-        for (int i = 1; i <= 10; i++) {
+        for (int i = 1; i <= 10; i++)
+        {
             std::ostringstream body;
             body << "{\"key\":\"popular_key_" << i << "\",\"value\":\"popular_value_" << i << "\"}";
             std::string request = "POST /api/kv HTTP/1.1\r\n";
@@ -262,7 +345,8 @@ int main(int argc, char* argv[]) {
             request += "\r\n" + body.str();
             sendHttpRequest(host, port, request);
         }
-        std::cout << "Pre-population complete.\n" << std::endl;
+        std::cout << "Pre-population complete.\n"
+                  << std::endl;
     }
 
     // Prepare statistics and thread containers
@@ -273,12 +357,14 @@ int main(int argc, char* argv[]) {
     auto test_start = std::chrono::steady_clock::now();
 
     // Launch multiple client threads
-    for (int i = 0; i < num_threads; i++) {
+    for (int i = 0; i < num_threads; i++)
+    {
         threads.emplace_back(clientThread, i, host, port, workload, duration_sec, key_space_size);
     }
 
     // Wait for all threads to complete
-    for (auto& t : threads) {
+    for (auto &t : threads)
+    {
         t.join();
     }
 
@@ -287,7 +373,8 @@ int main(int argc, char* argv[]) {
 
     // Aggregate statistics from all threads
     uint64_t total_sent = 0, total_succeeded = 0, total_failed = 0, total_latency = 0;
-    for (const auto& stats : g_client_stats) {
+    for (const auto &stats : g_client_stats)
+    {
         total_sent += stats.requests_sent;
         total_succeeded += stats.requests_succeeded;
         total_failed += stats.requests_failed;
@@ -304,7 +391,8 @@ int main(int argc, char* argv[]) {
     std::cout << "\n--- Performance Metrics ---" << std::endl;
     std::cout << "Average Throughput: " << (actual_duration > 0 ? (double)total_succeeded / actual_duration : 0) << " req/sec" << std::endl;
     std::cout << "Average Response Time: " << (total_succeeded > 0 ? (double)total_latency / total_succeeded : 0) << " ms" << std::endl;
-    std::cout << "=========================\n" << std::endl;
+    std::cout << "=========================\n"
+              << std::endl;
 
     return 0;
 }

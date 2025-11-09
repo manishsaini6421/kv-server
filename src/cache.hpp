@@ -6,6 +6,7 @@
  * * An LRU cache stores key-value pairs and, when full, removes the item
  * that hasn't been accessed for the longest time to make space for new items.
  */
+
 class LRUCache
 {
 private:
@@ -22,6 +23,8 @@ private:
     Impl* cache_impl;
 
     // --- PIMPL Idiom End ---
+
+    
 
 public:
     /**

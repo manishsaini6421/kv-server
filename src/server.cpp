@@ -10,14 +10,19 @@
 // =======================
 // Constructor Definition
 // =======================
-KVServer::KVServer(int port, size_t cache_size, size_t thread_pool_size, Database *db)
-    : port(port), thread_pool_size(thread_pool_size), running(false),
+KVServer::KVServer(int port, size_t cache_size, size_t thread_pool_size,
+                   const std::string &db_host, const std::string &db_port,
+                   const std::string &db_name, const std::string &db_user,
+                   const std::string &db_password)
+    : port(port), thread_pool_size(thread_pool_size),
+      db_host(db_host), db_port(db_port), db_name(db_name),
+      db_user(db_user), db_password(db_password), running(false),
       cache_hits(0), cache_misses(0), total_requests(0)
 {
     // Initialize cache with given size
     cache = std::make_unique<LRUCache>(cache_size);
     // Take ownership of the provided database pointer
-    database = std::unique_ptr<Database>(db);
+    // database = std::unique_ptr<Database>(db);
 
     // Initialize server socket to an invalid state
     server_socket = -1;
@@ -121,6 +126,13 @@ bool KVServer::start()
 // =======================
 void KVServer::workerThread()
 {
+    // Create a unique_ptr Database instance per thread
+    auto database = std::make_unique<Database>(
+        db_host.c_str(), db_port.c_str(), db_name.c_str(), 
+        db_user.c_str(), db_password.c_str());
+
+   
+
     while (running)
     {
         struct sockaddr_in client_addr;
@@ -161,7 +173,7 @@ void KVServer::workerThread()
         }
 
         // Handle client request synchronously in the same thread
-        handleClient(client_socket);
+        handleClient(client_socket, database.get());
 
         // Close client connection after serving
         close(client_socket);
@@ -171,7 +183,7 @@ void KVServer::workerThread()
 // =======================
 // Handle HTTP Request
 // =======================
-void KVServer::handleClient(int client_socket)
+void KVServer::handleClient(int client_socket, Database* database)
 {
     char buffer[4096];
 
@@ -305,7 +317,7 @@ void KVServer::handleClient(int client_socket)
             // Calls handlePutRequest(body)
             // Used for creating or updating a key-value pair.
             // Expects data in the request body, e.g., {"key": "name", "value": "Manish"}.
-            response = handlePutRequest(body); // Create/Update
+            response = handlePutRequest(body, database); // Create/Update
         }
 
         else if (method == "GET")
@@ -313,14 +325,14 @@ void KVServer::handleClient(int client_socket)
             // Calls handleGetRequest(query)
             //  Retrieves the value associated with a given key.
             //  Expects a query string in the URL, e.g., /api/kv?key=name.
-            response = handleGetRequest(query); // Read
+            response = handleGetRequest(query, database); // Read
         }
 
         else if (method == "DELETE")
         {
             // Calls handleDeleteRequest(query)
             // Deletes a key-value pair identified by the key in the query string.
-            response = handleDeleteRequest(query); // Delete
+            response = handleDeleteRequest(query, database); // Delete
         }
         else
         {
@@ -364,7 +376,7 @@ void KVServer::handleClient(int client_socket)
 // =======================
 // Handle POST/PUT Request
 // =======================
-std::string KVServer::handlePutRequest(const std::string &body)
+std::string KVServer::handlePutRequest(const std::string &body, Database* database)
 {
     std::string key, value;
     parseKeyValue(body, key, value); // Extract key and value from JSON
@@ -378,10 +390,12 @@ std::string KVServer::handlePutRequest(const std::string &body)
     // If database write fails, return 500 error
     if (!database->put(key, value))
     {
+        std::cerr << "[ERROR] PUT failed for key: " << key << std::endl;
         return buildHttpResponse(500, "{\"error\":\"Database write failed\"}");
     }
 
     // Update in-memory cache as well
+
     cache->put(key, value);
 
     return buildHttpResponse(200, "{\"status\":\"success\"}");
@@ -390,7 +404,7 @@ std::string KVServer::handlePutRequest(const std::string &body)
 // =======================
 // Handle GET Request
 // =======================
-std::string KVServer::handleGetRequest(const std::string &query)
+std::string KVServer::handleGetRequest(const std::string &query, Database *database)
 {
     // It searches the query string for a parameter named "key=".
     // Returns the substring after "key=" up to the next '&' (if any) or the end.
@@ -405,6 +419,7 @@ std::string KVServer::handleGetRequest(const std::string &query)
 
     // Try to get value from cache first
     std::string value = cache->get(key);
+
     if (!value.empty())
     {
         cache_hits++;
@@ -416,8 +431,10 @@ std::string KVServer::handleGetRequest(const std::string &query)
     cache_misses++;
 
     // If cache miss, retrieve from database
+    
     if (database->get(key, value))
     {
+        
         cache->put(key, value); // Store result in cache for next time
 
         std::ostringstream json;
@@ -432,7 +449,7 @@ std::string KVServer::handleGetRequest(const std::string &query)
 // =======================
 // Handle DELETE Request
 // =======================
-std::string KVServer::handleDeleteRequest(const std::string &query)
+std::string KVServer::handleDeleteRequest(const std::string &query, Database *database)
 {
     std::string key = parseKeyFromQuery(query);
 
@@ -442,7 +459,10 @@ std::string KVServer::handleDeleteRequest(const std::string &query)
     }
 
     // Remove from database and cache
-    database->del(key);
+    if (!database->del(key)) {
+        std::cerr << "[ERROR] DELETE failed for key: " << key << std::endl;
+        return buildHttpResponse(500, "{\"error\":\"Database delete failed\"}");
+    }
     cache->del(key);
 
     return buildHttpResponse(200, "{\"status\":\"success\"}");

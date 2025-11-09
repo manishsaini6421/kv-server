@@ -104,7 +104,9 @@ int main(int argc, char* argv[]) {
     // ------------------------------
     // Create the KVServer object with the configured parameters.
     // The server uses the given database connection for persistence.
-    g_server = new KVServer(server_port, cache_size, thread_pool_size, db);
+    // g_server = new KVServer(server_port, cache_size, thread_pool_size, db);
+    g_server = new KVServer(server_port, cache_size, thread_pool_size,
+                            db_host, db_port, db_name, db_user, db_password);
     
     // Attempt to start the server.
     if (!g_server->start()) {
@@ -126,7 +128,7 @@ int main(int argc, char* argv[]) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     
-    // Note: The code below will never be reached because of the infinite loop.
+    // The code below will never be reached because of the infinite loop.
     // The program terminates only when the signal handler is triggered.
     return 0;
 }

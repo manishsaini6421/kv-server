@@ -82,6 +82,28 @@ This project implements a **multi-tier HTTP-based Key-Value store** designed to 
    - Automatic timestamp tracking
 
 ---
+```
+                         ┌────────────────────────────────────┐
+                         │      KV Server (1 Container)       │
+                         │  ┌──────────────────────────────┐  │
+                         │  │ Thread 1 → DB Connection 1   │  │
+                         │  │ Thread 2 → DB Connection 2   │  │
+                         │  │ Thread 3 → DB Connection 3   │  │
+                         │  │ ...                          │  │
+                         │  │ Thread n → DB Connection n   │  │
+                         │  │ (All connecting to SAME DB)  │  │
+                         │  └──────────────────────────────┘  │
+                         └───────┬──┬──┬──┬──┬──┬──┬──┬───────┘
+                                 │  │  │  │  │  │  │  │
+                               (Multiple TCP Connections)
+                                 │  │  │  │  │  │  │  │
+                                 ▼  ▼  ▼  ▼  ▼  ▼  ▼  ▼
+                       ┌─────────────────────────────────────────┐
+                       │   Single PostgreSQL Database Container  │
+                       │        (kv_postgres running)            │
+                       └─────────────────────────────────────────┘
+                             
+```
 
 ## ✨ Features
 
@@ -199,8 +221,13 @@ Run in container:
 
 *./load_generator <host> <port> <workload> <num_threads> <duration_in_sec> [key_space_size]*
 
+# Different workloads
+```
+./load_generator localhost 8080 PUT_ALL 20 300      # Disk-bound
+./load_generator localhost 8080 GET_POPULAR 10 300  # CPU-bound
+./load_generator localhost 8080 MIXED 15 300        # Mixed
 
-Other workloads supported: PUT_ALL, GET_ALL, MIXED.
+```
 
 ---
 

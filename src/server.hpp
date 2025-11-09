@@ -29,7 +29,7 @@ private:
     std::unique_ptr<LRUCache> cache;
 
     // Pointer to database backend (PostgreSQL or similar) for persistent storage
-    std::unique_ptr<Database> database;
+    // std::unique_ptr<Database> database;
     
     // File descriptor for the server socket that listens for incoming client connections
     int server_socket;
@@ -39,6 +39,13 @@ private:
 
     // Number of worker threads to handle client requests concurrently
     size_t thread_pool_size;
+
+    // Database connection parameters
+    std::string db_host;
+    std::string db_port;
+    std::string db_name;
+    std::string db_user;
+    std::string db_password;
 
     // Pool of worker threads that process incoming HTTP requests
     std::vector<std::thread> worker_threads;
@@ -65,7 +72,7 @@ private:
      * 
      * @param client_socket Socket file descriptor for the connected client.
      */
-    void handleClient(int client_socket);
+    void handleClient(int client_socket,Database *db);
 
     /**
      * @brief Function executed by each worker thread.
@@ -84,7 +91,7 @@ private:
      * @param body The HTTP request body containing the key-value data.
      * @return A formatted HTTP response string.
      */
-    std::string handlePutRequest(const std::string& body);
+    std::string handlePutRequest(const std::string& body,Database *db);
 
     /**
      * @brief Handles HTTP GET requests (Read operation).
@@ -96,7 +103,7 @@ private:
      * @param query The URL query string containing the key parameter.
      * @return A formatted HTTP response with the key’s value or an error message.
      */
-    std::string handleGetRequest(const std::string& query);
+    std::string handleGetRequest(const std::string& query,Database *db);
 
     /**
      * @brief Handles HTTP DELETE requests (Delete operation).
@@ -107,7 +114,7 @@ private:
      * @param query The URL query string containing the key parameter.
      * @return A formatted HTTP response indicating success or failure.
      */
-    std::string handleDeleteRequest(const std::string& query);
+    std::string handleDeleteRequest(const std::string& query,Database *db);
     
     /**
      * @brief Extracts the "key" parameter from an HTTP query string.
@@ -171,7 +178,10 @@ public:
      * @param thread_pool_size Number of worker threads to spawn.
      * @param db Pointer to an already initialized Database object.
      */
-    KVServer(int port, size_t cache_size, size_t thread_pool_size, Database* db);
+    KVServer(int port, size_t cache_size, size_t thread_pool_size,
+             const std::string &db_host, const std::string &db_port,
+             const std::string &db_name, const std::string &db_user,
+             const std::string &db_password);
 
     /**
      * @brief Destructor that ensures resources (threads, sockets) are cleaned up.

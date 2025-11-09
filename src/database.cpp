@@ -110,6 +110,7 @@ bool Database::put(const std::string& key, const std::string& value) {
     std::string escaped_key = escapeString(key);
     std::string escaped_value = escapeString(value);
 
+    
     // Build an SQL query for "INSERT ... ON CONFLICT (key) DO UPDATE".
     // This ensures if the key already exists, it updates its value instead of inserting a duplicate.
     std::ostringstream query;
@@ -131,10 +132,9 @@ bool Database::put(const std::string& key, const std::string& value) {
     if (!success) {
         std::cerr << "PUT failed: " << PQerrorMessage(conn) << std::endl;
     }
-
+    
     // Free the PGresult object to avoid memory leaks.
     PQclear(res);
-
     // Return whether the operation was successful.
     return success;
 }
@@ -190,7 +190,13 @@ bool Database::del(const std::string& key) {
     query << "DELETE FROM kv_store WHERE key = '" << escaped_key << "'";
 
     // Execute the DELETE command.
-    PGresult* res = PQexec(conn, query.str().c_str());
+  const char* paramValues[1] = {key.c_str()};
+    int paramLengths[1] = {(int)key.length()};
+    int paramFormats[1] = {0};
+    
+    PGresult* res = PQexecParams(conn,
+        "DELETE FROM kv_store WHERE key = $1",
+        1, NULL, paramValues, paramLengths, paramFormats, 0);
 
     // Get the result status.
     ExecStatusType status = PQresultStatus(res);
