@@ -101,7 +101,6 @@ bool KVServer::start()
     // Explanation of components:
     //   - thread_pool_size: The total number of worker threads to create, typically
     //     defined based on the number of CPU cores or expected workload.
-    //   - i: Loop counter used to create each thread sequentially.
     //   - worker_threads: A vector (std::vector<std::thread>) that stores all the
     //     thread objects so that the server can later join or manage them properly.
     //   - emplace_back(...): Constructs the thread directly in place within the vector,
@@ -394,8 +393,7 @@ std::string KVServer::handlePutRequest(const std::string &body, Database* databa
         return buildHttpResponse(500, "{\"error\":\"Database write failed\"}");
     }
 
-    // Update in-memory cache as well
-
+    // Update in-memory cache as well  
     cache->put(key, value);
 
     return buildHttpResponse(200, "{\"status\":\"success\"}");
@@ -419,6 +417,7 @@ std::string KVServer::handleGetRequest(const std::string &query, Database *datab
 
     // Try to get value from cache first
     std::string value = cache->get(key);
+    
 
     if (!value.empty())
     {

@@ -90,14 +90,14 @@ int main(int argc, char* argv[]) {
     // Initialize the database connection
     // ------------------------------
     // Create a Database object using the configured parameters.
-    Database* db = new Database(db_host, db_port, db_name, db_user, db_password);
+    // Database* db = new Database(db_host, db_port, db_name, db_user, db_password);
     
-    // If the connection failed, display an error and exit the program.
-    if (!db->isConnected()) {
-        std::cerr << "Failed to connect to database. Exiting." << std::endl;
-        delete db; // Free allocated memory for Database object
-        return 1;  // Exit with non-zero status to indicate failure
-    }
+    // // If the connection failed, display an error and exit the program.
+    // if (!db->isConnected()) {
+    //     std::cerr << "Failed to connect to database. Exiting." << std::endl;
+    //     delete db; // Free allocated memory for Database object
+    //     return 1;  // Exit with non-zero status to indicate failure
+    // }
     
     // ------------------------------
     // Initialize and start the server

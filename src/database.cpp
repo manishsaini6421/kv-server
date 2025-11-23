@@ -1,18 +1,19 @@
-#include "database.hpp"  // Includes the header file where the Database class and its member functions are declared.
-#include <iostream>      // For input-output operations (std::cout, std::cerr).
-#include <sstream>       // For building strings efficiently using std::ostringstream.
-#include <cstring>       // For C-style string operations if needed (not directly used here but good for compatibility).
+#include "database.hpp" // Includes the header file where the Database class and its member functions are declared.
+#include <iostream>     // For input-output operations (std::cout, std::cerr).
+#include <sstream>      // For building strings efficiently using std::ostringstream.
+#include <cstring>      // For C-style string operations if needed (not directly used here but good for compatibility).
 
 // ==========================================================================================
 // Constructor: Establishes a connection to the PostgreSQL database using given parameters.
 // ==========================================================================================
-Database::Database(const std::string& host, const std::string& port,
-                   const std::string& dbname, const std::string& user,
-                   const std::string& password) {
-     // Build connection string dynamically using an output string stream (oss).
-     // Each connection parameter (host, port, dbname, user, password) is concatenated properly.
+Database::Database(const std::string &host, const std::string &port,
+                   const std::string &dbname, const std::string &user,
+                   const std::string &password)
+{
+    // Build connection string dynamically using an output string stream (oss).
+    // Each connection parameter (host, port, dbname, user, password) is concatenated properly.
 
-    std::ostringstream oss;  // Create a string stream to combine all parameters into a single string.
+    std::ostringstream oss; // Create a string stream to combine all parameters into a single string.
 
     // Build the connection string in the PostgreSQL expected format:
     // "host=<host> port=<port> dbname=<dbname> user=<user> password=<password>"
@@ -28,14 +29,17 @@ Database::Database(const std::string& host, const std::string& port,
 
     // Check if the connection attempt was successful.
     // PQstatus(conn) returns the current status of the connection.
-    if (PQstatus(conn) != CONNECTION_OK) {
+    if (PQstatus(conn) != CONNECTION_OK)
+    {
         // If connection failed, print the error message to standard error.
         std::cerr << "Connection to database failed: " << PQerrorMessage(conn) << std::endl;
-        
+
         // Clean up the failed connection by calling PQfinish, which closes and frees the PGconn object.
         PQfinish(conn);
-        conn = nullptr;  // Set connection pointer to null for safety.
-    } else {
+        conn = nullptr; // Set connection pointer to null for safety.
+    }
+    else
+    {
         // If the connection is successful, print a success message.
         std::cout << "Successfully connected to PostgreSQL database" << std::endl;
     }
@@ -44,8 +48,10 @@ Database::Database(const std::string& host, const std::string& port,
 // ==========================================================================================
 // Destructor: Cleans up the database connection when the Database object goes out of scope.
 // ==========================================================================================
-Database::~Database() {
-    if (conn) {        // If the connection is still open (not null)...
+Database::~Database()
+{
+    if (conn)
+    {                   // If the connection is still open (not null)...
         PQfinish(conn); // ...close the connection and release associated resources.
     }
 }
@@ -53,8 +59,10 @@ Database::~Database() {
 // ==========================================================================================
 // Attempt to reconnect to the database using the stored connection string.
 // ==========================================================================================
-bool Database::reconnect() {
-    if (conn) {
+bool Database::reconnect()
+{
+    if (conn)
+    {
         // Close existing connection first to avoid leaks or dangling pointers.
         PQfinish(conn);
     }
@@ -68,9 +76,11 @@ bool Database::reconnect() {
 // ==========================================================================================
 // Check if the connection is alive; if not, attempt to reconnect.
 // ==========================================================================================
-void Database::checkConnection() {
+void Database::checkConnection()
+{
     // If connection pointer is null or its status is not OK, reconnect.
-    if (!conn || PQstatus(conn) != CONNECTION_OK) {
+    if (!conn || PQstatus(conn) != CONNECTION_OK)
+    {
         std::cerr << "Database connection lost. Attempting to reconnect..." << std::endl;
         reconnect();
     }
@@ -79,10 +89,11 @@ void Database::checkConnection() {
 // ==========================================================================================
 // Escape a string so that it can be safely used in SQL queries (prevents SQL injection).
 // ==========================================================================================
-std::string Database::escapeString(const std::string& str) {
+std::string Database::escapeString(const std::string &str)
+{
     // Allocate enough space for the escaped version of the string.
     // Each character may become up to 2 characters in the escaped version, hence length*2 + 1.
-    char* escaped = new char[str.length() * 2 + 1];
+    char *escaped = new char[str.length() * 2 + 1];
 
     // Use PostgreSQL's built-in escape function to sanitize the string.
     // PQescapeStringConn() escapes special characters in 'str' for safe SQL usage.
@@ -102,15 +113,16 @@ std::string Database::escapeString(const std::string& str) {
 // ==========================================================================================
 // PUT operation: Create or update a key-value pair in the database (Upsert).
 // ==========================================================================================
-bool Database::put(const std::string& key, const std::string& value) {
-    checkConnection();   // Ensure the connection is valid before executing SQL.
-    if (!conn) return false;  // If connection is invalid, return false immediately.
+bool Database::put(const std::string &key, const std::string &value)
+{
+    checkConnection(); // Ensure the connection is valid before executing SQL.
+    if (!conn)
+        return false; // If connection is invalid, return false immediately.
 
     // Escape the key and value to avoid SQL injection.
     std::string escaped_key = escapeString(key);
     std::string escaped_value = escapeString(value);
 
-    
     // Build an SQL query for "INSERT ... ON CONFLICT (key) DO UPDATE".
     // This ensures if the key already exists, it updates its value instead of inserting a duplicate.
     std::ostringstream query;
@@ -120,7 +132,7 @@ bool Database::put(const std::string& key, const std::string& value) {
 
     // Execute the SQL command using PQexec().
     // PQexec() sends a command to the PostgreSQL server and waits for the result.
-    PGresult* res = PQexec(conn, query.str().c_str());
+    PGresult *res = PQexec(conn, query.str().c_str());
 
     // Check the execution result status.
     ExecStatusType status = PQresultStatus(res);
@@ -129,10 +141,11 @@ bool Database::put(const std::string& key, const std::string& value) {
     bool success = (status == PGRES_COMMAND_OK);
 
     // If it failed, print an error message for debugging.
-    if (!success) {
+    if (!success)
+    {
         std::cerr << "PUT failed: " << PQerrorMessage(conn) << std::endl;
     }
-    
+
     // Free the PGresult object to avoid memory leaks.
     PQclear(res);
     // Return whether the operation was successful.
@@ -142,9 +155,11 @@ bool Database::put(const std::string& key, const std::string& value) {
 // ==========================================================================================
 // GET operation: Retrieve the value for a given key from the database.
 // ==========================================================================================
-bool Database::get(const std::string& key, std::string& value) {
-    checkConnection();   // Ensure connection is alive before executing.
-    if (!conn) return false; // Return false if connection is invalid.
+bool Database::get(const std::string &key, std::string &value)
+{
+    checkConnection(); // Ensure connection is alive before executing.
+    if (!conn)
+        return false; // Return false if connection is invalid.
 
     // Escape the key to ensure safe query execution.
     std::string escaped_key = escapeString(key);
@@ -154,7 +169,7 @@ bool Database::get(const std::string& key, std::string& value) {
     query << "SELECT value FROM kv_store WHERE key = '" << escaped_key << "'";
 
     // Execute the SQL query and store the result.
-    PGresult* res = PQexec(conn, query.str().c_str());
+    PGresult *res = PQexec(conn, query.str().c_str());
 
     // Get the status of the executed query.
     ExecStatusType status = PQresultStatus(res);
@@ -162,7 +177,8 @@ bool Database::get(const std::string& key, std::string& value) {
     bool found = false; // Boolean flag to indicate whether the key was found.
 
     // If the query succeeded and returned at least one row...
-    if (status == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+    if (status == PGRES_TUPLES_OK && PQntuples(res) > 0)
+    {
         // Extract the value from the first row and first column.
         value = PQgetvalue(res, 0, 0);
         found = true; // Mark as found.
@@ -178,9 +194,11 @@ bool Database::get(const std::string& key, std::string& value) {
 // ==========================================================================================
 // DELETE operation: Remove a key-value pair from the database.
 // ==========================================================================================
-bool Database::del(const std::string& key) {
-    checkConnection();  // Ensure connection is valid.
-    if (!conn) return false;  // If not connected, return false.
+bool Database::del(const std::string &key)
+{
+    checkConnection(); // Ensure connection is valid.
+    if (!conn)
+        return false; // If not connected, return false.
 
     // Escape the key to prevent SQL injection.
     std::string escaped_key = escapeString(key);
@@ -189,14 +207,16 @@ bool Database::del(const std::string& key) {
     std::ostringstream query;
     query << "DELETE FROM kv_store WHERE key = '" << escaped_key << "'";
 
+    //   const char* paramValues[1] = {key.c_str()};
+    //     int paramLengths[1] = {(int)key.length()};
+
+    //     int paramFormats[1] = {0};
+    // PGresult* res = PQexecParams(conn,
+    //     "DELETE FROM kv_store WHERE key = $1",
+    //     1, NULL, paramValues, paramLengths, paramFormats, 0);
+
     // Execute the DELETE command.
-  const char* paramValues[1] = {key.c_str()};
-    int paramLengths[1] = {(int)key.length()};
-    int paramFormats[1] = {0};
-    
-    PGresult* res = PQexecParams(conn,
-        "DELETE FROM kv_store WHERE key = $1",
-        1, NULL, paramValues, paramLengths, paramFormats, 0);
+    PGresult *res = PQexec(conn, query.str().c_str());
 
     // Get the result status.
     ExecStatusType status = PQresultStatus(res);
@@ -205,7 +225,8 @@ bool Database::del(const std::string& key) {
     bool success = (status == PGRES_COMMAND_OK);
 
     // If deletion failed, print the error for debugging.
-    if (!success) {
+    if (!success)
+    {
         std::cerr << "DELETE failed: " << PQerrorMessage(conn) << std::endl;
     }
 
@@ -219,7 +240,8 @@ bool Database::del(const std::string& key) {
 // ==========================================================================================
 // Utility function: Check if the database connection is currently alive.
 // ==========================================================================================
-bool Database::isConnected() {
+bool Database::isConnected()
+{
     // Returns true only if connection pointer is valid and status is OK.
     return conn && PQstatus(conn) == CONNECTION_OK;
 }

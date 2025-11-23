@@ -223,9 +223,9 @@ Run in container:
 
 # Different workloads
 ```
-./load_generator localhost 8080 PUT_ALL 20 300      # Disk-bound
-./load_generator localhost 8080 GET_POPULAR 10 300  # CPU-bound
-./load_generator localhost 8080 MIXED 15 300        # Mixed
+./build/load_generator localhost 8080 PUT_ALL 20 300      # Disk-bound
+./build/load_generator localhost 8080 GET_POPULAR 10 300  # CPU-bound
+./build/load_generator localhost 8080 MIXED 15 300        # Mixed
 
 ```
 

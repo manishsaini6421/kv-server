@@ -29,7 +29,7 @@ services:
       interval: 5s     # Run health check every 5 seconds
       timeout: 3s      # Wait max 3 seconds for each check
       retries: 5       # Retry up to 5 times before marking the container unhealthy
-
+    cpuset: "0"    # Pinning the container to specific CPU cores for performance optimization
   # ===============================
   # KV Server Container
   # ===============================
@@ -53,7 +53,7 @@ services:
       CACHE_SIZE: 1000                   # Setting cache size (in number of key-value pairs)
       THREAD_POOL_SIZE: 8                # Setting number of worker threads for handling requests
     command: ./kv_server                 # The command that runs inside the container (starts my server)
-
+    cpuset: "0"                        # Pinning the container to specific CPU cores for performance optimization
 # ===============================
 # Docker Volume Configuration
 # ===============================
